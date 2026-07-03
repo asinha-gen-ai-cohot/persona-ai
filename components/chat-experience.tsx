@@ -9,7 +9,7 @@ import {
   RefreshCcw,
   SendHorizontal,
   Sparkles,
-  Sun
+  Sun,
 } from "lucide-react";
 import type { ChatMessage, PersonaId } from "@/lib/personas";
 import { PERSONA_ORDER, PERSONAS } from "@/lib/personas";
@@ -28,7 +28,7 @@ type Theme = "light" | "dark";
 
 const initialThreads: ThreadState = {
   hitesh: [{ role: "assistant", content: PERSONAS.hitesh.greeting }],
-  piyush: [{ role: "assistant", content: PERSONAS.piyush.greeting }]
+  piyush: [{ role: "assistant", content: PERSONAS.piyush.greeting }],
 };
 
 export function ChatExperience() {
@@ -47,7 +47,7 @@ export function ChatExperience() {
 
   const style = useMemo(
     () => ({ "--persona-accent": persona.accent }) as React.CSSProperties,
-    [persona.accent]
+    [persona.accent],
   );
 
   useEffect(() => {
@@ -78,14 +78,14 @@ export function ChatExperience() {
     const nextMessages = [...messages, { role: "user" as const, content }];
     setThreads((current) => ({
       ...current,
-      [personaId]: nextMessages
+      [personaId]: nextMessages,
     }));
 
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ persona: personaId, messages: nextMessages })
+        body: JSON.stringify({ persona: personaId, messages: nextMessages }),
       });
 
       const data = (await response.json()) as ChatResponse;
@@ -99,7 +99,7 @@ export function ChatExperience() {
       setLastModel(data.model || "llm");
       setThreads((current) => ({
         ...current,
-        [personaId]: [...nextMessages, { role: "assistant", content: data.message as string }]
+        [personaId]: [...nextMessages, { role: "assistant", content: data.message as string }],
       }));
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Something went wrong.";
@@ -111,9 +111,9 @@ export function ChatExperience() {
           {
             role: "assistant",
             content:
-              "I could not complete that request. Check the server logs or API configuration, then try again."
-          }
-        ]
+              "I could not complete that request. Check the server logs or API configuration, then try again.",
+          },
+        ],
       }));
     } finally {
       setIsLoading(false);
@@ -135,7 +135,7 @@ export function ChatExperience() {
   function resetCurrentThread() {
     setThreads((current) => ({
       ...current,
-      [personaId]: [{ role: "assistant", content: persona.greeting }]
+      [personaId]: [{ role: "assistant", content: persona.greeting }],
     }));
     setError("");
   }
@@ -158,7 +158,7 @@ export function ChatExperience() {
                 <MessageSquareText size={20} />
               </div>
               <div className="brand-copy">
-                <p className="eyebrow">LLM Persona Lab</p>
+                <p className="eyebrow">Persona AI</p>
                 <h1 className="brand-title">Mentor Chat</h1>
               </div>
             </div>
@@ -331,12 +331,6 @@ export function ChatExperience() {
               >
                 <SendHorizontal size={19} />
               </button>
-            </div>
-
-            <div className="meta-row" aria-label="Conversation metadata">
-              <span className="meta-chip">Context: recent turns + compact memory</span>
-              <span className="meta-chip">Responses API</span>
-              <span className="meta-chip">Persona-safe simulation</span>
             </div>
           </form>
         </section>
