@@ -340,25 +340,234 @@ export function ChatExperience() {
 }
 
 function FormattedMessage({ content }: { content: string }) {
-  const parts = content.split(/```/g);
+  return <div className="message-content">{renderMarkdown(content)}</div>;
+}
 
+function renderMarkdown(markdown: string) {
+  const blocks: React.ReactNode[] = [];
+  const fencePattern = /```([a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = fencePattern.exec(markdown)) !== null) {
+    if (match.index > lastIndex) {
+      blocks.push(...renderTextBlocks(markdown.slice(lastIndex, match.index), blocks.length));
+    }
+
+    blocks.push(
+      <pre key={`code-${blocks.length}`}>
+        <code>{match[2].trim()}</code>
+      </pre>,
+    );
+    lastIndex = fencePattern.lastIndex;
+  }
+
+  if (lastIndex < markdown.length) {
+    blocks.push(...renderTextBlocks(markdown.slice(lastIndex), blocks.length));
+  }
+
+  return blocks;
+}
+
+function renderTextBlocks(markdown: string, keyOffset: number) {
+  const blocks: React.ReactNode[] = [];
+  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+
+    if (!line.trim()) {
+      index += 1;
+      continue;
+    }
+
+    if (isTableStart(lines, index)) {
+      const headers = parseTableRow(lines[index]);
+      index += 2;
+
+      const rows: string[][] = [];
+      while (index < lines.length && lines[index].includes("|") && lines[index].trim()) {
+        rows.push(parseTableRow(lines[index]));
+        index += 1;
+      }
+
+      blocks.push(
+        <div className="message-table-wrap" key={`table-${keyOffset}-${blocks.length}`}>
+          <table>
+            <thead>
+              <tr>
+                {headers.map((header, headerIndex) => (
+                  <th key={`header-${keyOffset}-${blocks.length}-${headerIndex}`}>
+                    {renderInlineMarkdown(header)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, rowIndex) => (
+                <tr key={`row-${keyOffset}-${blocks.length}-${rowIndex}`}>
+                  {headers.map((_, cellIndex) => (
+                    <td key={`cell-${keyOffset}-${blocks.length}-${rowIndex}-${cellIndex}`}>
+                      {renderInlineMarkdown(row[cellIndex] ?? "")}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
+
+    const heading = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      const HeadingTag = `h${level + 2}` as "h3" | "h4" | "h5";
+      blocks.push(
+        <HeadingTag key={`heading-${keyOffset}-${blocks.length}`}>
+          {renderInlineMarkdown(heading[2])}
+        </HeadingTag>,
+      );
+      index += 1;
+      continue;
+    }
+
+    if (/^\s*[-*]\s+/.test(line)) {
+      const items: React.ReactNode[] = [];
+      while (index < lines.length && /^\s*[-*]\s+/.test(lines[index])) {
+        items.push(
+          <li key={`item-${keyOffset}-${blocks.length}-${items.length}`}>
+            {renderInlineMarkdown(lines[index].replace(/^\s*[-*]\s+/, ""))}
+          </li>,
+        );
+        index += 1;
+      }
+      blocks.push(<ul key={`ul-${keyOffset}-${blocks.length}`}>{items}</ul>);
+      continue;
+    }
+
+    if (/^\s*\d+\.\s+/.test(line)) {
+      const items: React.ReactNode[] = [];
+      while (index < lines.length && /^\s*\d+\.\s+/.test(lines[index])) {
+        items.push(
+          <li key={`item-${keyOffset}-${blocks.length}-${items.length}`}>
+            {renderInlineMarkdown(lines[index].replace(/^\s*\d+\.\s+/, ""))}
+          </li>,
+        );
+        index += 1;
+      }
+      blocks.push(<ol key={`ol-${keyOffset}-${blocks.length}`}>{items}</ol>);
+      continue;
+    }
+
+    if (/^>\s?/.test(line)) {
+      const quoteLines: string[] = [];
+      while (index < lines.length && /^>\s?/.test(lines[index])) {
+        quoteLines.push(lines[index].replace(/^>\s?/, ""));
+        index += 1;
+      }
+      blocks.push(
+        <blockquote key={`quote-${keyOffset}-${blocks.length}`}>
+          {renderInlineMarkdown(quoteLines.join(" "))}
+        </blockquote>,
+      );
+      continue;
+    }
+
+    const paragraphLines = [line.trim()];
+    index += 1;
+    while (
+      index < lines.length &&
+      lines[index].trim() &&
+      !isMarkdownBlockStart(lines[index])
+    ) {
+      paragraphLines.push(lines[index].trim());
+      index += 1;
+    }
+
+    blocks.push(
+      <p key={`paragraph-${keyOffset}-${blocks.length}`}>
+        {renderInlineMarkdown(paragraphLines.join(" "))}
+      </p>,
+    );
+  }
+
+  return blocks;
+}
+
+function isMarkdownBlockStart(line: string) {
   return (
-    <div className="message-content">
-      {parts.map((part, index) => {
-        if (index % 2 === 1) {
-          return (
-            <pre key={index}>
-              <code>{stripCodeFenceLanguage(part)}</code>
-            </pre>
-          );
-        }
-
-        return <span key={index}>{part}</span>;
-      })}
-    </div>
+    /^(#{1,3})\s+/.test(line) ||
+    /^\s*[-*]\s+/.test(line) ||
+    /^\s*\d+\.\s+/.test(line) ||
+    isTableDivider(line) ||
+    /^>\s?/.test(line)
   );
 }
 
-function stripCodeFenceLanguage(value: string) {
-  return value.replace(/^[a-zA-Z0-9_-]+\n/, "").trim();
+function isTableStart(lines: string[], index: number) {
+  return Boolean(
+    lines[index]?.includes("|") &&
+      lines[index + 1] &&
+      isTableDivider(lines[index + 1]) &&
+      parseTableRow(lines[index]).length >= 2,
+  );
+}
+
+function isTableDivider(line: string) {
+  const cells = parseTableRow(line);
+  return cells.length >= 2 && cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function parseTableRow(line: string) {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
+}
+
+function renderInlineMarkdown(text: string) {
+  const nodes: React.ReactNode[] = [];
+  const inlinePattern =
+    /(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\(https?:\/\/[^)\s]+\))/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = inlinePattern.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      nodes.push(text.slice(lastIndex, match.index));
+    }
+
+    const token = match[0];
+    const key = `inline-${nodes.length}-${match.index}`;
+
+    if (token.startsWith("`")) {
+      nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith("**")) {
+      nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
+    } else if (token.startsWith("*")) {
+      nodes.push(<em key={key}>{token.slice(1, -1)}</em>);
+    } else {
+      const link = /^\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)$/.exec(token);
+      if (link) {
+        nodes.push(
+          <a href={link[2]} key={key} rel="noreferrer" target="_blank">
+            {link[1]}
+          </a>,
+        );
+      }
+    }
+
+    lastIndex = inlinePattern.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    nodes.push(text.slice(lastIndex));
+  }
+
+  return nodes;
 }
