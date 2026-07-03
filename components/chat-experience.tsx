@@ -22,6 +22,8 @@ type ChatResponse = {
   detail?: string;
   offline?: boolean;
   model?: string;
+  rateLimited?: boolean;
+  retryAfter?: number;
 };
 
 type Theme = "light" | "dark";
@@ -89,6 +91,28 @@ export function ChatExperience() {
       });
 
       const data = (await response.json()) as ChatResponse;
+
+      if (response.status === 429 || data.rateLimited) {
+        const retryAfter = Number(
+          data.retryAfter || response.headers.get("Retry-After") || 60,
+        );
+        const rateLimitMessage =
+          data.error ||
+          `You have hit the rate limit of 5 requests per minute. Please wait ${retryAfter} seconds and try again.`;
+
+        setError(rateLimitMessage);
+        setThreads((current) => ({
+          ...current,
+          [personaId]: [
+            ...nextMessages,
+            {
+              role: "assistant",
+              content: `Rate limit reached. You can send up to **5 messages per minute**. Please wait about **${retryAfter} seconds** and try again.`,
+            },
+          ],
+        }));
+        return;
+      }
 
       if (!response.ok || data.error || !data.message) {
         const detail = data.detail ? ` ${data.detail}` : "";

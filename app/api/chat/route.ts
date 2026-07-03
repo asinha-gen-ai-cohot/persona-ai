@@ -6,6 +6,10 @@ import { getPersona } from "@/lib/personas";
 export const runtime = "nodejs";
 
 const DEFAULT_MODEL = "gpt-5.4-mini";
+const RATE_LIMIT_MAX_REQUESTS = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+const requestLog = new Map<string, number[]>();
 
 type OpenAIResponse = {
   output_text?: string;
@@ -19,6 +23,26 @@ type OpenAIResponse = {
 
 export async function POST(request: Request) {
   try {
+    const rateLimit = checkRateLimit(request);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: `You have hit the rate limit of ${RATE_LIMIT_MAX_REQUESTS} requests per minute. Please wait ${rateLimit.retryAfterSeconds} seconds and try again.`,
+          rateLimited: true,
+          retryAfter: rateLimit.retryAfterSeconds
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimit.retryAfterSeconds),
+            "X-RateLimit-Limit": String(RATE_LIMIT_MAX_REQUESTS),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset": String(rateLimit.resetAt)
+          }
+        }
+      );
+    }
+
     const body = await request.json();
     const persona = getPersona(typeof body.persona === "string" ? body.persona : undefined);
     const messages = sanitizeMessages(body.messages);
@@ -110,4 +134,46 @@ function extractOutputText(data: OpenAIResponse) {
 
 function supportsReasoning(model: string) {
   return /^(gpt-5|o\d|o-|o\.)/i.test(model);
+}
+
+function checkRateLimit(request: Request) {
+  const clientId = getClientId(request);
+  const now = Date.now();
+  const windowStart = now - RATE_LIMIT_WINDOW_MS;
+  const recentRequests = (requestLog.get(clientId) ?? []).filter(
+    (timestamp) => timestamp > windowStart
+  );
+
+  if (recentRequests.length >= RATE_LIMIT_MAX_REQUESTS) {
+    const resetAtMs = recentRequests[0] + RATE_LIMIT_WINDOW_MS;
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - now) / 1000)),
+      resetAt: Math.ceil(resetAtMs / 1000)
+    };
+  }
+
+  recentRequests.push(now);
+  requestLog.set(clientId, recentRequests);
+
+  return {
+    allowed: true,
+    retryAfterSeconds: 0,
+    resetAt: Math.ceil((now + RATE_LIMIT_WINDOW_MS) / 1000)
+  };
+}
+
+function getClientId(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  const vercelIp = request.headers.get("x-vercel-forwarded-for");
+  const cloudflareIp = request.headers.get("cf-connecting-ip");
+
+  return (
+    forwardedFor?.split(",")[0]?.trim() ||
+    realIp?.trim() ||
+    vercelIp?.split(",")[0]?.trim() ||
+    cloudflareIp?.trim() ||
+    "local-client"
+  );
 }
