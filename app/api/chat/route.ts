@@ -6,7 +6,7 @@ import { getPersona } from "@/lib/personas";
 export const runtime = "nodejs";
 
 const DEFAULT_MODEL = "gpt-5.4-mini";
-const RATE_LIMIT_MAX_REQUESTS = 5;
+const RATE_LIMIT_MAX_REQUESTS = 3;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
 const requestLog = new Map<string, number[]>();

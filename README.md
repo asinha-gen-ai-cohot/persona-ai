@@ -9,7 +9,7 @@ AI-powered website for simulated conversations with either Hitesh Choudhary or P
 - Source-grounded persona prompts in `lib/personas.ts`.
 - OpenAI Responses API integration.
 - Context handling with recent turns plus compact memory.
-- API rate limiting at 5 chat requests per minute.
+- API rate limiting at 3 chat requests per minute.
 - Demo mode when no API key is configured.
 - Persisted light/dark theme toggle.
 - Documentation with research, prompt strategy, context approach, and samples.

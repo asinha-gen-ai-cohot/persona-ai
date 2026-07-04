@@ -98,7 +98,7 @@ export function ChatExperience() {
         );
         const rateLimitMessage =
           data.error ||
-          `You have hit the rate limit of 5 requests per minute. Please wait ${retryAfter} seconds and try again.`;
+          `You have hit the rate limit of 3 requests per minute. Please wait ${retryAfter} seconds and try again.`;
 
         setError(rateLimitMessage);
         setThreads((current) => ({
@@ -107,7 +107,7 @@ export function ChatExperience() {
             ...nextMessages,
             {
               role: "assistant",
-              content: `Rate limit reached. You can send up to **5 messages per minute**. Please wait about **${retryAfter} seconds** and try again.`,
+              content: `Rate limit reached. You can send up to **3 messages per minute**. Please wait about **${retryAfter} seconds** and try again.`,
             },
           ],
         }));
