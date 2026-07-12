@@ -3,9 +3,8 @@
 AI-powered website for simulated conversations with either Hitesh Choudhary or Piyush Garg. The app supports persona switching, server-side LLM calls, context compaction, and a clean chat experience.
 
 ## Links:
-Demo link (usage incur costs for me): https://lnkd.in/g-72pPp2
-Document Link: https://lnkd.in/gMCvdRAH
-Readme: https://lnkd.in/gVd9VSUd
+- Demo link (usage incur costs for me): https://lnkd.in/g-72pPp2
+- Document Link: https://lnkd.in/gMCvdRAH
 
 ## Features
 
